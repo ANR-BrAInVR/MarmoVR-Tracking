@@ -1,0 +1,8 @@
+camList			[0, 1, 2, 3]	# List of int: cameras to use with values between 0 and 3
+connectTimeout	12				# Int: camera connection timeout (in seconds)
+framerate		40				# Int: processing framerate (camera framerate is this multiplied by frameStep value)
+frameStep		1				# Int: number of acquired frames between two processed frames (minimum 1)
+exposure		8333			# Int: time of camera exposure in μs (high enough to avoid color flickering) (default: 10000)
+gain			10				# Float: gain of camera (increasing gain increases noise, max is 20dB) (default: 10)
+cropSize		(450, 450)		# Tuple: size of the ROI for the crop
+rotateCamList	[0, 0, 90, -90]		# List of floats: camera rotations to align monitoring with setup

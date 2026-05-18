@@ -1,0 +1,25 @@
+logLevel		2				# Int: log verbose level of Tracking (0-4)
+controller		'UI'			# String: 'UE' for Unreal Engine (other PC) or 'UI' for user interface (this PC)
+profilerList	[]				# List: camera number for which time profiler is activated (for debug only)
+
+# Detection modes and visualization
+runDetect		True			# Bool: run position detection (could be False if getting DLC cyclop, see below)
+runDLC			True			# Bool: run DLC inferences on each camera frame
+triangulate		True			# Bool: triangulates 2D positions of cameras to get 3D positions
+showPos2D		True			# Bool: show animal tracking, needs either runDetect or runDLC enabled
+showDLC			True			# Bool: show DLC on cropped images, needs tracking and runDLC activated
+sendPos3D		True			# Bool: send 3D positions to Unreal based on detection or DLC (needs triangulate enabled)
+useCyclop		True			# Bool: use cyclop instead of detected 2D positions for triangulation and monitoring
+imgMode			'full'			# String: image monitoring mode: 'full', 'diff', 'thresh', 'morph' (1280x1024 resized) or 'crop' (450x450)
+
+# Results options
+saveResults		True			# Bool: save results
+saveTextCopy	True			# Bool: save results as text files (readable) in addition to npy files
+recSound		True			# Bool: records audio stream with the results (assumes a mic is plugged)
+audioFormat		'flac'			# Bool: format of the audio files (wav, flac or mp3)
+audioInVideos	False			# Bool: add audio channel (mp3 at 192kbps) to videos (overwrites)
+
+# Directories
+resultsDir		'/media/devs/Results/'		# String: directory where results are
+calibDir		'Calibration/'				# String: directory where the calibration matrices are
+neuralNetDir	'/media/devs/NeuralNetworks/Marmosets/efficientnet-b0/'		# String: directory for marmoset trained NN

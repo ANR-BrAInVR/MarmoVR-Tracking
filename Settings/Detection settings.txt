@@ -1,0 +1,42 @@
+# Triangulation settings
+excludeOutOfCave	True	# Checks if triangulation results gets out of the cave and replace values with -1
+checkProbaDLC		True	# Uses only cameras with keypoint inference superior to pThresh for triangulation
+
+# DLC settings
+keyNames		['snout', 'whitepatch', 'eartuffL', 'eartuffR', 'backneck', 'shoulderL', 'shoulderR', 'wristL', 'wristR', 'hipL', 'hipR', 'ankleL', 'ankleR', 'tailroot', 'tailmiddle', 'tailtip']	# Keypoint names (order matters)
+optimization	'base'		# String: DLC optimization 'base' (tensorflow 2.5) or 'tensorrt' (GPU accelerated) or 'tflite' (CPU only)
+gpuMemoryfrac	0.6			# Float: per process, GPU memory fraction reserved for tensor flow (default: 0.3)
+pThresh			0.1 		# Float: minimum value of the inference probability to be considered valid
+dynCrop		    True 		# Bool: use dynamic crop (based on previous center of keypoints detected)
+nativeCropSize	(400, 400)	# Tuple: size of DLC trained network
+detectThresh	0.4 		# Float: detection threshold for dynamic crop
+nKeysDynCrop	3	 		# Minimum number of valid keypoints for dynamic crop
+
+# Additional motion analyses settings
+getCyclop3D		False		# Compute cyclop 3D positions (averaging of triangulated keypoints) instead of triangulating 2D cyclops
+keyCyclop		['eartuffL', 'eartuffR'] 			# Keypoints averaged to define cyclop (in 2D and then triangulated)
+pThreshCyclop	0.4 		# Float: minimum inference probability for keypoints to be used when averaging to compute cyclop position
+nKeysCyclop		2	 		# Minimum number of valid keypoints to compute cyclop position
+getVelocity		True		# Bool: compute cyclop velocity (3D vector and norm)
+minFwdSpeed		10			# Float: minimal velocity to be considered moving forward (cm/s)
+minBwdSpeed		10			# Float: minimal velocity to be considered moving backward (cm/s)
+getMotionDir	False		# Bool: detects if moving 'forward', 'backward' or 'static'
+getGazeDir		False		# Bool: Computes gaze direction (3D vector defined by two keypoints)
+keyGazeDir		['backneck',  'whitepatch']				# Keypoints used to define gaze direction
+
+# Simple detector settings
+useExclMask		True		# Bool: use exclusion mask to remove visible areas outside of cave (True)
+subtractMethod	1			# Int: 0 for absolute diff (all cases), 1 for ref-img (darker animal), 2 for img-ref (lighter animal)
+upperCamThresh	60			# Int: upper cameras threshold value to isolate the monkey (90)
+lowerCamThresh	60			# Int: lower cameras threshold value to isolate the monkey (80)
+morphMaskSize	(5, 5)		# Tuple: size of the mask used with morphological filtering
+useDynMask		False		# Bool: activates or not dynamic mask
+dynMasksize		(200, 200)	# Tuple : size of dynamic mask
+filter2D		2			# Int: filter to use on 2D detection, 0=none, 1=mean, 2=median
+filter2Dsize	3			# Int: size of sliding window where filter2D is applied
+filter3D		1			# Int: filter to use on 3D detection, 0=none, 1=mean, 2=median
+filter3Dsize	5			# Int: size of sliding window where filter3D is applied
+
+# Reference image settings
+refNframes			18		# Int: number of frames averaged to create reference image
+refFrameSample		10		# Int: sampling rate (take one frame every refFrameSample)

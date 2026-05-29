@@ -1167,7 +1167,7 @@ class Tracking:
                     imgIndexesPrev = self.imgIndexes[0]
 
                     # Get copies of current 2D position list and image index
-                    pos2Ds_copy = list(pos2Ds).copy()
+                    pos2Ds_copy = list(self.pos2Ds).copy()
                     imgIndex0 = self.imgIndexes[0]
 
                     self.log.LogText(3, 'Triangulation (imgIndexes=%d): processing detected 2D positions' % imgIndexesPrev)
@@ -1194,8 +1194,8 @@ class Tracking:
                     imgIndexesPrev_DLC = self.imgIndexes_DLC[0]
 
                     # Get copies of current 2D DLC keypoint position lists and image index
-                    pos2Ds_DLC_copy = np.copy(pos2D_DLC)
-                    pos2D_cyclop_copy = np.copy(pos2D_cyclop)
+                    pos2Ds_DLC_copy = np.copy(self.pos2Ds_DLC)
+                    pos2D_cyclop_copy = np.copy(self.pos2D_cyclop)
                     imgIndex0_DLC = self.imgIndexes_DLC[0]
 
                     self.log.LogText(3, 'Triangulation (imgIndexes_DLC=%d): processing inferred DLC keypoints' % imgIndexesPrev_DLC)
@@ -1847,7 +1847,7 @@ class UIController(QWidget):
         self.useCyclop = self_tracking.useCyclop
         self.sendPos3D = self_tracking.sendPos3D
         self.saveResults = self_tracking.saveResults
-        self.imgMode = manager.list(self.settings.imgMode)       # Image monitoring modes (2 max among full, crop, thresh, morph depending on detector)
+        self.imgMode = self_tracking.imgMode
 
         super().__init__()
 

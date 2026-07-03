@@ -3,8 +3,9 @@ excludeOutOfCave	True	# Checks if triangulation results gets out of the cave and
 checkProbaDLC		True	# Uses only cameras with keypoint inference superior to pThresh for triangulation
 
 # DLC settings
+neuralNetDir	'../NeuralNetworks/Marmosets/efficientnet-b0_wide'		# String: directory for marmoset trained NN
 keyNames		['snout', 'whitepatch', 'eartuffL', 'eartuffR', 'backneck', 'shoulderL', 'shoulderR', 'wristL', 'wristR', 'hipL', 'hipR', 'ankleL', 'ankleR', 'tailroot', 'tailmiddle', 'tailtip']	# Keypoint names (order matters)
-optimization	'base'		# String: DLC optimization 'base' (tensorflow 2.5) or 'tensorrt' (GPU accelerated) or 'tflite' (CPU only)
+modelType		'pytorch'	# String: DLC model 'pytorch' (latest) or 'base' (tensorflow 2.5)
 gpuMemoryfrac	0.6			# Float: per process, GPU memory fraction reserved for tensor flow (default: 0.3)
 pThresh			0.1 		# Float: minimum value of the inference probability to be considered valid
 dynCrop		    True 		# Bool: use dynamic crop (based on previous center of keypoints detected)

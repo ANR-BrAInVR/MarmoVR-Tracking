@@ -25,30 +25,37 @@ import numpy as np
 from ximea import xiapi
 import cv2
 from PyQt5.QtWidgets import *
+from pyasn1_modules.rfc2985 import signingTime
 
 # IPs and communication ports (warning: ports indexed by camNb not camInd)
-IP = {'Tracking': '192.168.0.2', 'Rendering': '192.168.0.1', 'Recobox0': '192.168.0.20', 'Recobox1': '192.168.0.21'}
-UDPserverRendering = (IP['Rendering'], 50771)
-TCPserverTracking = (IP['Tracking'], 65432)
+IP = {'Tracking': '192.168.0.2', 'Rendering': '192.168.0.1', 'Recobox0': '192.168.0.20', 'Recobox1': '192.168.0.21', 'localhost':'127.0.0.1'}
+UDPclientPort_Rendering = 50771
+UDPserverPort_Rendering = 50772
+TCPserverPort_Tracking = 65432
 TCPserverRecobox = [(IP['Recobox0'], 2390), (IP['Recobox1'], 2391)]
-UDPpacketSize = 65000   # Size of UDP packets
-TCPpacketSize = 4096    # Size of TCP packets
+UDPpacketSize = 1024    # Size of UDP packets
+TCPpacketSize = 1024    # Size of TCP packets
 
-# Image global settings
+# Image global settings (color images)
 imgWidth, imgHeight = 1280, 1024
 
-# Inferred keypoint positions by DeepLabCut (DLC)
+# DLC keypoints variables
 keyColors = {'eartuffL': (0, 0, 255), 'eartuffR': (0, 255, 0), 'whitepatch': (255, 255, 255), 'snout': (200, 200, 200), 'backneck': (200, 200, 200),
              'shoulderL': (0, 0, 145), 'shoulderR': (0, 145, 0), 'wristL': (0, 0, 90), 'wristR': (0, 90, 0), 'hipL': (0, 0, 145), 'hipR': (0, 145, 0),
              'ankleL': (0, 0, 90), 'ankleR': (0, 90, 0), 'tailroot': (200, 200, 200), 'tailmiddle': (145, 145, 145), 'tailtip': (95, 95, 95)}
 nKeys = len(keyColors)
-keyRadius = 3  # Maximal radius size of the keypoints for monitoring (reached when inference p=1)
-cyclopRadius = 4  # Maximal radius size of cyclop for monitoring (reached when inference p=1)
-cyclopColor = 0  # Detection or cyclop center color (white)
+# nKeysMax = 20       # Maximum number of keys detected by DLC
+keyRadius = 3       # Maximum radius size of the keys for monitoring (when inference p=1)
+cyclopRadius = 4    # Maximum radius size of cyclop for monitoring (when inference p=1)
+cyclopColor = 0     # Detection or cyclop key center color (white)
+
+# UE stimulus event related
+nStimsMax = 4     # Maximum number of events that can be sent back to results
 
 # Settings place holder
 class Settings:
     owner = None
+
 
 # Tracking that detects 2D position of animals for each camera, triangulates and runs DLC on cropped images
 class Tracking:
@@ -93,21 +100,28 @@ class Tracking:
         self.imgIndexes = mp.Array('l', [-1] * self.camCount)          # Index of last image received in each camera (stream)
 
         # Detected 2D position of animal in each camera
-        self.pos2Ds = manager.list([np.zeros(2)] * self.camCount)      # Positions 2D of mass center in camera coordinates (full image)
+        self.pos2Ds = manager.list([np.zeros(2)] * self.camCount)           # Positions 2D of mass center in camera coordinates (full image)
+        self.pos2D_cyclop = manager.list([np.zeros(3)] * self.camCount)     # Computed cyclop 2D positions for each camera (needs DLC activated, in full image coordinates)
 
         # Triangulated 3D position of animal
         self.pos3D = manager.list([np.zeros(3)])                 # Position 3D mass center in cave coordinates (valid pos2D triangulated)
         self.imgIndexPos3D = mp.Value('l', -1)                   # Index of cam0 image from which pos2D have been triangulated (stream)
 
-        self.pos2D_cyclop = manager.list([np.zeros(3)] * self.camCount)            # Computed cyclop 2D positions for each camera (needs DLC activated, in full image coordinates)
-        self.pos3D_cyclop = manager.list([np.zeros(4)])                          # Triangulated cyclop 3D positions (X, Y, Z, pMean) (in aquarium coordinates)
-
+        # Inferred DLC keypoint 2D positions in each camera
         self.pos2Ds_DLC = manager.list([np.zeros((nKeys, 3))] * self.camCount)      # 2D positions and confidence (X, Y, p) of each inferred keypoint (in full image coordinates)
         self.imgIndexes_DLC = mp.Array('l', [-1] * self.camCount)                  # Index of image from which keypoints have been inferred
 
         # Triangulated DLC inferred keypoints
         self.pos3Ds_DLC = manager.list([np.zeros((nKeys, 4))])        # Triangulated 3D positions (X, Y, Z, pMean) of each inferred pair (in aquarium coordinates)
         self.imgIndexPos3D_DLC = mp.Value('l', -1)                   # Index of cam0 image from which DLC keypoints have been inferred
+        self.pos3D_cyclop = manager.list([np.zeros(4)])                          # Triangulated cyclop 3D positions (X, Y, Z, pMean) (in aquarium coordinates)
+
+        # Rendering returned event infos
+        self.timeRendering = mp.Value('f', 0.0)
+        self.posTracked = manager.list([np.zeros(3)])                       # 3D positions (X, Y, Z) of focal fish returned by rendering PC
+        self.posEvents = manager.list([np.zeros(3)] * nStimsMax)          # 3D positions (X, Y, Z) of each event (in aquarium coordinates)
+        self.rotEvents = manager.list([np.zeros(3)] * nStimsMax)          # 3D rotations (rX, rY, rZ) of each event (in aquarium coordinates)
+        self.nEvents = manager.Value('H', 0)                 # Number of actual events to update
 
         # Trial infos for results directory and filename of results, and to update UI
         self.expID = manager.Value(c_wchar_p, 'exp')
@@ -123,6 +137,7 @@ class Tracking:
         self.showDLC = mp.Value('B', self.settings.showDLC)
         self.useCyclop = mp.Value('B', self.settings.useCyclop)
         self.sendPos3D = mp.Value('B', self.settings.sendPos3D)
+        self.recvStimPos = mp.Value('B', self.settings.recvStimPos)
         self.saveResults = mp.Value('B', self.settings.saveResults)
         self.imgMode = manager.list(self.settings.imgMode)                                  # Image monitoring mode
         self.recSound = mp.Value('B', self.settings.recSound)        # Records sound during trials
@@ -227,9 +242,6 @@ class Tracking:
         # Quit GUI if still there
         # self.GUIproc.kill()
 
-        # Give time for processes to end
-        time.sleep(0.5)
-
     def LoadSettings(self):
         """Loads settings files"""
 
@@ -276,6 +288,7 @@ class Tracking:
             self.useCyclop.value = self.settings.useCyclop
             self.showDLC.value = self.settings.showDLC
             self.sendPos3D.value = self.settings.sendPos3D
+            self.recvStimPos.value = self.settings.recvStimPos
             self.imgMode.value = self.settings.imgMode
             self.saveResults.value = self.settings.saveResults
 
@@ -322,6 +335,11 @@ class Tracking:
         for camInd in range(self.camCount):
             videoProcessingProcs[camInd].start()
         processList.extend(videoProcessingProcs)
+
+        if self.recvStimPos.value:
+            # Starts UDP server to receive event's position and rotation from Rendering PC
+            UDPserverThread = threading.Thread(target=self.UDPserver, args=())
+            UDPserverThread.start()
 
         # Waits that all video processing processes are acquiring from cameras
         t0 = time.perf_counter()
@@ -1138,7 +1156,9 @@ class Tracking:
                 return False
 
         # Starts connection with Rendering PC
-        UDPServerSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        UDPclientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        UDPclient_Rendering = (IP['Rendering'], UDPclientPort_Rendering) if not self.settings.runLocal \
+            else (IP['localhost'], UDPclientPort_Rendering)     # For local debug
 
         # Initializes sliding window of filter3D
         if self.filter3D != 0:
@@ -1156,7 +1176,7 @@ class Tracking:
 
             if self.stopRequest.value:
                 self.log.LogText(1, 'Triangulation: stop request received, process ending')
-                UDPServerSocket.close()
+                UDPclientSocket.close()
                 return
 
             # Triangulates detected 2D positions
@@ -1256,10 +1276,68 @@ class Tracking:
 
                 # Send data
                 message = '%.3f,%.3f,%.3f' % tuple(posUDP)
-                UDPServerSocket.sendto(message.encode(), UDPserverRendering)
+                UDPclientSocket.sendto(message.encode(), UDPclient_Rendering)
                 self.log.LogText(3, 'Triangulation: message sent to Rendering \'%s\' (camsUsed=%s, imgIndexes=%d)' % (message, vcUDP, imgIndexesPrev))
 
                 updatePosUDP = False
+
+    # UDP server to receive event's positions and orientations from rendering
+    def UDPserver(self):
+
+        self.log.LogText(1, 'UDPserver() thread running (waiting for Rendering event positions/orientations)')
+
+        UDPserverSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        UDPserverSocket.bind(('', UDPserverPort_Rendering))
+        UDPserverSocket.setblocking(False)      # Alternative : UDPserverSocket.settimeout(0)
+
+        # Empty buffer
+        try:
+            while len(UDPserverSocket.recv(UDPpacketSize)) == 0: pass
+        except socket.error:
+            pass
+
+        from ast import literal_eval
+
+        while True:
+
+            # Quits on stopRequest
+            if self.stopRequest.value or self.quit.value:
+                self.log.LogText(1, 'UDPserver: %s received, thread ending' % 'stop request' if self.stopRequest.value else 'quit')
+                return
+
+            try:
+                msgIn = UDPserverSocket.recv(UDPpacketSize).decode()
+                self.log.LogText(3, 'UDPserver: msgIn received \'%s\'' % msgIn)
+                textList = msgIn.split('\t')
+                textInd = 0
+                nEvents = 0
+                while textInd < len(textList):
+                    if textList[textInd] == 'Time':
+                        textInd += 1
+                        self.timeRendering.value = float(textList[textInd])
+                        # print('self.timeRendering.value = %f' % self.timeRendering.value)           # DEBUG
+                        textInd += 1
+                    elif textList[textInd] == 'Tracked':
+                        textInd += 1
+                        self.posTracked[0] = np.array(literal_eval(textList[textInd]))
+                        # print('self.posTracked[0] = %s' % self.posTracked[0])                       # DEBUG
+                        textInd += 1
+                    elif 'Event' in textList[textInd]:
+                        stimInd = int(textList[textInd][-1]) - 1
+                        textInd += 1
+                        self.posEvents[stimInd] = np.array(literal_eval(textList[textInd]))
+                        # print('self.posEvents[%d] = np.array(%s) = %s' % (eventInd, textList[textInd], self.posEvents[eventInd]))     # DEBUG
+                        textInd += 1
+                        self.rotEvents[stimInd] = np.array(literal_eval(textList[textInd]))
+                        # print('self.rotEvents[%d] = np.array(%s) = %s' % (eventInd, textList[textInd], self.rotEvents[eventInd]))     # DEBUG
+                        textInd += 1
+                        nEvents += 1
+                    else:
+                        textInd += 1
+                self.nEvents.value = nEvents
+
+            except socket.error:
+                pass
 
     # TCP server receiving commands from Rendering PC (THREAD)
     def TCPserver(self, cmdSeparator='\t'):
@@ -1269,10 +1347,13 @@ class Tracking:
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serverSocket:
 
+            TCPserver_Tracking = (IP['Tracking'], TCPserverPort_Tracking) if not self.settings.runLocal \
+                else (IP['localhost'], TCPserverPort_Tracking)      # For local debug
+
             # Binds TCP server to the correct port
             while True:
                 try:
-                    serverSocket.bind(TCPserverTracking)
+                    serverSocket.bind(TCPserver_Tracking)
                 except socket.error as errorMsg:
                     self.log.LogText(2, 'TCPserver: could not bind with server address, retrying in 1s')
                     time.sleep(1)
@@ -1285,7 +1366,7 @@ class Tracking:
             while True:
 
                 # Waits for client to connect
-                self.log.LogText(2, 'TCPserver: listening on %s...' % str(TCPserverTracking))
+                self.log.LogText(2, 'TCPserver: listening on %s...' % str(TCPserver_Tracking))
                 serverSocket.listen()
                 try:
                     clientSocket, clientAddress = serverSocket.accept()
@@ -1498,6 +1579,13 @@ class Tracking:
                 # DLC inferred keypoints vars
                 keyGazeDirInds = [list(self.keyNames).index(keyName) for keyName in self.keyGazeDir]
 
+        if self.recvStimPos.value:
+            dt3D.extend([('timeRendering', 'f8')])
+            dt3D.extend([('pos(tracked)', 'f8', 3)])
+            for stimInd in range(nStimsMax):
+                dt3D.extend([('pos(stim%d)' % stimInd, 'f8', 3)])
+                dt3D.extend([('rot(stim%d)' % stimInd, 'f8', 3)])
+
         dt3D = np.dtype(dt3D)
 
         # Prepare new resultsEvents array dt
@@ -1613,7 +1701,16 @@ class Tracking:
                                 else:
                                     res3D['vel(0)'][fInd] = -1
                                     res3D['velNorm(0)'][fInd] = -1
-                            # self.log.LogText(3, 'SaveResults: new 3D data available, updating results arrays ')
+                            # Feedback from rendering computer (if runDLC is false)
+                            if self.recvStimPos.value and not self.runDLC.value:
+                                res3D['timeRendering'][fInd] = self.timeRendering.value
+                                res3D['pos(tracked)'][fInd] = self.posTracked[0]
+                                for stimInd in range(self.nEvents.value):
+                                    res3D['pos(event%d)' % stimInd][fInd] = self.posEvents[stimInd]
+                                    res3D['rot(event%d)' % stimInd][fInd] = self.rotEvents[stimInd]
+                                for stimInd in range(self.nEvents.value, nStimsMax):
+                                    res3D['pos(event%d)' % stimInd][fInd] = np.zeros(3)
+                                    res3D['rot(event%d)' % stimInd][fInd] = np.zeros(3)
                     if self.runDLC.value:
                         if self.imgIndexPos3D_DLC.value != imgIndexPos3DPrev_DLC:
                             imgIndexPos3DPrev_DLC = self.imgIndexPos3D_DLC.value
@@ -1648,6 +1745,16 @@ class Tracking:
                                         res3D['motionDir'][fInd] = -1 if res3D['velNorm(Cyclop)'][fInd] > self.minBwdSpeed else 0
                                 else:
                                     res3D['motionDir'][fInd] = -99
+                            # Feedback from rendering computer (if runDLC is false)
+                            if self.recvStimPos.value:
+                                res3D['timeRendering'][fInd] = self.timeRendering.value
+                                res3D['pos(tracked)'][fInd] = self.posTracked[0]
+                                for stimInd in range(self.nEvents.value):
+                                    res3D['pos(event%d)' % stimInd][fInd] = self.posEvents[stimInd]
+                                    res3D['rot(event%d)' % stimInd][fInd] = self.rotEvents[stimInd]
+                                for stimInd in range(self.nEvents.value, nStimsMax):
+                                    res3D['pos(event%d)' % stimInd][fInd] = np.zeros(3)
+                                    res3D['rot(event%d)' % stimInd][fInd] = np.zeros(3)
 
                 # Events
                 if self.eventString.value != '':
@@ -1834,7 +1941,7 @@ class UIController(QWidget):
 
         # UI shared controller vars
         UImode = self_tracking.settings.controller == 'UI'
-        if self_tracking:
+        if UImode:
             self.expID = self_tracking.expID
             self.subjectID = self_tracking.subjectID
             self.trialID = self_tracking.subjectID
@@ -1846,15 +1953,18 @@ class UIController(QWidget):
         self.showDLC = self_tracking.showDLC
         self.useCyclop = self_tracking.useCyclop
         self.sendPos3D = self_tracking.sendPos3D
+        self.recSound = self_tracking.recSound
+        self.recvStimPos = self_tracking.recvStimPos
         self.saveResults = self_tracking.saveResults
         self.imgMode = self_tracking.imgMode
+        self.recoboxRunning = self_tracking.recoboxRunning
 
         super().__init__()
 
         # Load section UIs
-        prevY = self.SystemSettingsUI(posX=10, posY=0)
+        prevY = self.SystemSettingsUI(posX=10, posY=0, UImode=UImode)
         winHeight = 390
-        if self.UImode:
+        if UImode:
             prevY = self.ExperimentSettingsUI(posX=10, posY=prevY + 25)
             prevY = self.ExperimentControllerUI(posX=10, posY=prevY + 25)
             winHeight += 300
@@ -1874,7 +1984,7 @@ class UIController(QWidget):
         # TODO: update window if recobox is active (actually, checking recobox only at init, want to update this between exp)
 
 
-    def SystemSettingsUI(self, posX, posY):
+    def SystemSettingsUI(self, posX, posY, UImode=False):
         # Section title
         self.systemSetLbl = QLabel('System settings', self)
         self.systemSetLbl.setGeometry(posX, posY, 150, 30)
@@ -1918,19 +2028,27 @@ class UIController(QWidget):
         posY += 45
         # Run triangulation
         self.triangulateBtn = QPushButton('Triangulate', self)
-        self.triangulateBtn.setGeometry(posX, posY, 120, 30)
+        self.triangulateBtn.setGeometry(posX, posY, 80, 30)
         self.triangulateBtn.setCheckable(True)
         self.triangulateBtn.setChecked(self.triangulate.value)
         self.triangulateBtn.setEnabled(self.runDetect.value or self.runDLC.value)
         self.triangulateBtn.clicked.connect(self.Triangulate)
         # Send 3D position to Unreal
-        self.sendPos3DBtn = QPushButton('Send 3D pos', self)
-        self.sendPos3DBtn.setGeometry(posX + 120, posY, 120, 30)
+        self.sendPos3DBtn = QPushButton('Send cyclop', self)
+        self.sendPos3DBtn.setGeometry(posX + 80, posY, 80, 30)
         self.sendPos3DBtn.setCheckable(True)
         self.sendPos3DBtn.setEnabled(self.triangulate.value)
         self.sendPos3DBtn.setChecked(self.sendPos3D.value)
         self.sendPos3DBtn.clicked.connect(self.SendPos3D)
-        posY += 35
+        # Receive stimulus 3D pos/rot from Unreal
+        self.recvStimPosBtn = QPushButton('Receive stim', self)
+        self.recvStimPosBtn.setGeometry(posX + 160, posY, 80, 30)
+        self.recvStimPosBtn.setCheckable(True)
+        # self.recvStimPosBtn.setEnabled(False)        # To block feature
+        self.recvStimPosBtn.setEnabled(self.sendPos3D.value)
+        self.recvStimPosBtn.setChecked(self.recvStimPos.value)
+        self.recvStimPosBtn.clicked.connect(self.RecvStimPos)
+        posY += 40
         # Image Mode selection
         self.imgModeTxt = QLabel('Monitoring', self)
         self.imgModeTxt.setGeometry(posX + 20, posY, 120, 30)
@@ -1949,7 +2067,7 @@ class UIController(QWidget):
         posY += 35
 
         # In UE controller mode, add...
-        if not self.UImode:
+        if not UImode:
             # New reference image button
             posY += 10
             self.newRefBtn = QPushButton('New Reference Image', self)
@@ -2001,42 +2119,42 @@ class UIController(QWidget):
         self.experimentSetLbl.setStyleSheet('font-weight: bold')
         posY += 40
         # Experiment ID
-        self.expID = QLabel('Experiment', self)
-        self.expID.setGeometry(posX, posY, 100, 20)
-        self.textExpID = QLineEdit(self)
-        self.textExpID.setText(self.expID.value)
-        self.textExpID.setGeometry(posX + 90, posY, 150, 20)
+        self.expID_label = QLabel('Experiment', self)
+        self.expID_label.setGeometry(posX, posY, 100, 20)
+        self.expID_text = QLineEdit(self)
+        self.expID_text.setText(self.expID.value)
+        self.expID_text.setGeometry(posX + 90, posY, 150, 20)
         posY += 25
         # Subject ID
-        self.subjID = QLabel('Subject', self)
-        self.subjID.setGeometry(posX, posY, 100, 20)
-        self.textSubjID = QLineEdit(self)
-        self.textSubjID.setText(self.subjectID.value)
-        self.textSubjID.setGeometry(posX + 90, posY, 150, 20)
+        self.subjID_label = QLabel('Subject', self)
+        self.subjID_label.setGeometry(posX, posY, 100, 20)
+        self.subjID_text = QLineEdit(self)
+        self.subjID_text.setText(self.subjectID.value)
+        self.subjID_text.setGeometry(posX + 90, posY, 150, 20)
         posY += 25
         # TrialID
-        self.trialID = QLabel('Trial', self)
-        self.trialID.setGeometry(posX, posY, 100, 20)
-        self.textTrialID = QLineEdit(self)
-        self.textTrialID.setText(self.trialID.value)
-        self.textTrialID.setGeometry(posX + 90, posY, 150, 20)
+        self.trialID_label = QLabel('Trial', self)
+        self.trialID_label.setGeometry(posX, posY, 100, 20)
+        self.trialID_text = QLineEdit(self)
+        self.trialID_text.setText(self.trialID.value)
+        self.trialID_text.setGeometry(posX + 90, posY, 150, 20)
         posY += 25
         # ConditionID
-        self.condID = QLabel('Condition', self)
-        self.condID.setGeometry(posX, posY, 100, 20)
-        self.textCondID = QLineEdit(self)
-        self.textCondID.setText(self.condID.value)
-        self.textCondID.setGeometry(posX + 90, posY, 150, 20)
+        self.condID_label = QLabel('Condition', self)
+        self.condID_label.setGeometry(posX, posY, 100, 20)
+        self.condID_text = QLineEdit(self)
+        self.condID_text.setText(self.condID.value)
+        self.condID_text.setGeometry(posX + 90, posY, 150, 20)
         posY += 30
 
         return posY
 
     def UpdateExperimentSettingsUI(self):
 
-        self.textExpID.setText(self.expID.value)
-        self.textSubjID.setText(self.subjectID.value)
-        self.textTrialID.setText(self.trialID.value)
-        self.textCondID.setText(self.condID.value)
+        self.expID_text.setText(self.expID.value)
+        self.subjID_text.setText(self.subjectID.value)
+        self.trialID_text.setText(self.trialID.value)
+        self.condID_text.setText(self.condID.value)
         self.saveResultsChk.setChecked(self.saveResults.value)
         self.recSoundChk.setChecked(self.recSound.value)
 
@@ -2209,15 +2327,15 @@ class UIController(QWidget):
         self.saveResultsChk.setEnabled(False)           # Disable saveResults checkbox
         self.recSoundChk.setEnabled(False)              # Disable recSound checkbox
         # Disable experiment UI fields
-        self.textExpID.setEnabled(False)
-        self.textSubjID.setEnabled(False)
-        self.textTrialID.setEnabled(False)
-        self.textCondID.setEnabled(False)
+        self.expID_text.setEnabled(False)
+        self.subjID_text.setEnabled(False)
+        self.trialID_text.setEnabled(False)
+        self.condID_text.setEnabled(False)
         # Send commands to TCP server
-        self.SendCommandTCPTracking('expID=%s' % self.textExpID.text())
-        self.SendCommandTCPTracking('subjectID=%s' % self.textSubjID.text())
-        self.SendCommandTCPTracking('trialID=%s' % self.textTrialID.text())
-        self.SendCommandTCPTracking('condID=%s' % self.textCondID.text())
+        self.SendCommandTCPTracking('expID=%s' % self.expID_text.text())
+        self.SendCommandTCPTracking('subjectID=%s' % self.subjID_text.text())
+        self.SendCommandTCPTracking('trialID=%s' % self.trialID_text.text())
+        self.SendCommandTCPTracking('condID=%s' % self.condID_text.text())
         self.SendCommandTCPTracking('startTrial')
         self.log.LogText(2, 'UIController: startTrial sent')
 
@@ -2228,10 +2346,10 @@ class UIController(QWidget):
         self.saveResultsChk.setEnabled(True)        # Enable saveResults checkbox
         self.recSoundChk.setEnabled(True)           # Enable recSound checkbox
         # Enable experiment UI fields
-        self.textExpID.setEnabled(True)
-        self.textSubjID.setEnabled(True)
-        self.textTrialID.setEnabled(True)
-        self.textCondID.setEnabled(True)
+        self.expID_text.setEnabled(True)
+        self.subjID_text.setEnabled(True)
+        self.trialID_text.setEnabled(True)
+        self.condID_text.setEnabled(True)
         # Send command to TCP server
         self.SendCommandTCPTracking('endTrial')
         self.log.LogText(2, 'UIController: endTrial sent')
@@ -2317,6 +2435,10 @@ class UIController(QWidget):
 
     def SendPos3D(self):
         self.sendPos3D.value = self.sendPos3DBtn.isChecked()
+        self.recvStimPosBtn.setEnabled(self.sendPos3D.value)
+
+    def RecvStimPos(self):
+        self.recvStimPos.value = self.recvStimPosBtn.isChecked()
 
     def LoadSettings(self):
         self.SendCommandTCPTracking('loadSettings')
@@ -2425,9 +2547,12 @@ class UIController(QWidget):
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as clientSocket:
 
+            TCPserver_Tracking = (IP['Tracking'], TCPserverPort_Tracking) if not self.settings.runLocal \
+                else (IP['localhost'], TCPserverPort_Tracking)      # For local debug
+
             # Connects to TCP server on Tracking
             try:
-                clientSocket.connect(TCPserverTracking)
+                clientSocket.connect(TCPserver_Tracking)
             except socket.error as errorMsg:
                 self.log.LogText(2, 'SendCommandTCPTracking: Connection error: %s' % errorMsg)
                 return 0
@@ -2489,8 +2614,8 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     # Multi-processing settings
-    mp.set_start_method('spawn')
-    mp.freeze_support()
+    # mp.set_start_method('spawn')
+    # mp.freeze_support()
 
     # Start tracking
     myTracking = Tracking()

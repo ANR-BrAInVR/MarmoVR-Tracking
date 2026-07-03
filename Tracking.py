@@ -966,31 +966,31 @@ class Tracking:
 
         # DLC neural network initialization
         if True:
-            import tensorflow as tf
-            from dlclive import DLCLive
+            # import tensorflow as tf
+            from dlclive import DLCLive, Processor
 
             # DLC inferred keypoints vars
             keyCyclopInds = [list(self.keyNames).index(keyName) for keyName in self.keyCyclop]
 
-            # Limite l'expansion abusive de la mémoire par Tensor flow :
-            #   - entre 0 et 1, fraction de la mémoire de la carte graphique
-            #   - si le même réseau pour tous les process, c'est la même mémoire pour tous, sinon pour chaque réseau
-            #   - ne fonctionne pas avec TF RT
-            GPUoptions = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=self.gpuMemoryfrac)
-            config = tf.compat.v1.ConfigProto(gpu_options=GPUoptions)
+            if self.modelType == 'base':
+                import tensorflow as tf
+                # Limite l'expansion abusive de la mémoire par Tensor flow :
+                #   - entre 0 et 1, fraction de la mémoire de la carte graphique
+                #   - si le même réseau pour tous les process, c'est la même mémoire pour tous, sinon pour chaque réseau
+                #   - ne fonctionne pas avec TF RT
+                GPUoptions = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=self.gpuMemoryfrac)
+                config = tf.compat.v1.ConfigProto(gpu_options=GPUoptions)
 
-            # Pour TF 1.5 :
-            # GPUoptions = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)
-            # config = tf.ConfigProto(GPUoptions=GPUoptions)
-
-            # Choix du réseau (parmis ceux entrainés) :
-            # - dossier du réseau
-            # - model_type : base (avec GPU), tensorrt (plus performant, avec GPU), tflite (CPU, pas recommandé)
-            # - tf_config : configuration définie juste au dessus (limitation mémoire)
-            # - processor : Processor() (peut être redéfini pour ajouter du filtrage prédictif par exemple)
-            # - display : pour tracer des points (pas encore trouvé comment, pas utilisé)
-            # dlc_live = DLCLive(self.neuralNetDir, model_type=optimization, tf_config=config, processor=Processor(), display=False)
-            dlc_live = DLCLive(self.neuralNetDir, model_type=self.optimization, tf_config=config, resize=self.cropSize[0]/self.nativeCropSize[0])
+                # Choix du réseau (parmis ceux entrainés) :
+                # - dossier du réseau
+                # - model_type : base (avec GPU), tensorrt (plus performant, avec GPU), tflite (CPU, pas recommandé)
+                # - tf_config : configuration définie juste au dessus (limitation mémoire)
+                # - processor : Processor() (peut être redéfini pour ajouter du filtrage prédictif par exemple)
+                # - display : pour tracer des points (pas encore trouvé comment, pas utilisé)
+                # dlc_live = DLCLive(self.neuralNetDir, model_type=optimization, tf_config=config, processor=Processor(), display=False)
+                dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor, =self.cropSize[0]/self.nativeCropSize[0])
+            elif self.modelType == 'pytorch':
+                dlc_live = DLCLive(self.neuralNetDir, model_type='pytorch', processor=Processor(), display=False, single_animal=True)
 
             # Initialize weights with black image (0 info)
             dlc_live.init_inference(np.zeros(self.nativeCropSize))
@@ -1036,10 +1036,11 @@ class Tracking:
                             inferredPos[keyInd, 0] += cropULs[0]
                             inferredPos[keyInd, 1] += cropULs[1]
                     else:
+                        # Inference below validity threshold
                         inferredPos[keyInd, 0:2] = -np.ones(2)
 
                 # Stores in shared variable for further triangulation and results saving
-                self.pos2Ds_DLC[camInd] = np.copy(inferredPos)
+                self.pos2Ds_DLC[camInd] = np.copy(inferredPos[:, 0:3])      # DEBUG : now returns 5 per keypoint...
                 self.imgIndexes_DLC[camInd] = imgIndex
 
                 # Computes cyclop

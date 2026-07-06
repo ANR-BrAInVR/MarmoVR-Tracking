@@ -675,7 +675,7 @@ class Tracking:
             # At trial start: create video writers for each camera
             if self.dataRecording.value and not dataRecordingPrev:
                 # Creates paths if not existing
-                path = self.resultsDir + '%s/%s/' % (self.expID.value, self.subjectID.value)
+                path = self.settings.resultsDir + '%s/%s/' % (self.expID.value, self.subjectID.value)
                 resultsFile = 'Trial-%s_Cond-%s' % (self.trialID.value, self.condID.value)
                 try:
                     os.makedirs(path)
@@ -993,7 +993,7 @@ class Tracking:
                 dlc_live = DLCLive(self.neuralNetDir, model_type='pytorch', processor=Processor(), display=False, single_animal=True)
 
             # Initialize weights with black image (0 info)
-            dlc_live.init_inference(np.zeros(self.nativeCropSize))
+            dlc_live.init_inference(np.zeros(self.cropSize, np.float32))
 
         # Threaded DLC inference
         def DLC_inference(self, camInd, dlc_live):
@@ -1024,14 +1024,12 @@ class Tracking:
 
                 # Run DLC pose inference
                 inferredPos = dlc_live.get_pose(imgDLC)
+                # print(inferredPos)
 
                 # Rescale according to native crop size and adds UL coordinates and stores in shared variable
                 for keyInd in range(nKeys):
                     if inferredPos[keyInd, 2] >= self.pThresh:
                         if self.runDetect:
-                            # Rescale
-                            # inferredPos[keyInd, 0] *= self.nativeCropSize[0] / self.cropSize[0]
-                            # inferredPos[keyInd, 1] *= self.nativeCropSize[1] / self.cropSize[1]
                             # Adds upper-left corner to inferred keypoints (for basic detection)
                             inferredPos[keyInd, 0] += cropULs[0]
                             inferredPos[keyInd, 1] += cropULs[1]
@@ -1079,12 +1077,12 @@ class Tracking:
                 if len(values) < 2 or values[0][0] == '#':
                     continue
                 camCombUseDict[values[0]] = dict(use=values[1], refCam=int(values[2]))
-                camCombUseDict[values[0]]['pMatrix_VirtToReal'] = np.load(self.calibDir + 'Ref cam%d/Pmatrix_virt2real_%s.npy' % (camCombUseDict[values[0]]['refCam'], camCombUseDict[values[0]]['use']))
+                camCombUseDict[values[0]]['pMatrix_VirtToReal'] = np.load(self.settings.calibDir + 'Ref cam%d/Pmatrix_virt2real_%s.npy' % (camCombUseDict[values[0]]['refCam'], camCombUseDict[values[0]]['use']))
 
         # Load projection matrices of each camera in each reference camera
         pMatrices = []
         for camRefInd in self.camList:
-            pMatrices += [[np.load(self.calibDir + 'Ref cam%d/Pmatrix_cam%d.npy' % (camRefInd,camInd)) for camInd in self.camList]]
+            pMatrices += [[np.load(self.settings.calibDir + 'Ref cam%d/Pmatrix_cam%d.npy' % (camRefInd,camInd)) for camInd in self.camList]]
 
         # DLC inferred keypoints vars
         if self.getCyclop3D:
@@ -1608,7 +1606,7 @@ class Tracking:
                     self.log.LogText(2, 'SaveResults: preparing arrays (flag dataRecording=True)')
 
                     # Creates paths if not existing
-                    path = self.resultsDir + '%s/%s/' % (self.expID.value, self.subjectID.value)
+                    path = self.settings.resultsDir + '%s/%s/' % (self.expID.value, self.subjectID.value)
                     resultsFile = 'Trial-%s_Cond-%s' % (self.trialID.value, self.condID.value)
                     try:
                         os.makedirs(path)
@@ -1772,7 +1770,7 @@ class Tracking:
 
                 # General results log file
                 header = ['expID', 'subjectID', 'trialID', 'condID', 'filename']
-                fileName = self.resultsDir + '%s/' % self.expID.value + '%s_files.tsv' % self.expID.value
+                fileName = self.settings.resultsDir + '%s/' % self.expID.value + '%s_files.tsv' % self.expID.value
                 writeHeader = not os.path.isfile(fileName)
                 with open(fileName, 'a') as csvfile:
                     filewriter = csv.writer(csvfile, delimiter='\t')
@@ -1817,19 +1815,19 @@ class Tracking:
                     wav_file.close()        # Close the wave file
                     
                     # Converts file to desired format
-                    if self.audioFormat.lower() != 'wav':
+                    if self.settings.audioFormat.lower() != 'wav':
                         # AudioSegment.converter = r"path\to\ffmpeg.exe"
                         audSeg = AudioSegment.from_wav(filename_wav)
                         # audSeg = audio.set_frame_rate(44100)
                         audSeg.set_frame_rate(44100)
-                        filename_cvt = path + resultsFile + '_sound.' + self.audioFormat.lower()
-                        audSeg.export(filename_cvt, format=self.audioFormat.lower())
+                        filename_cvt = path + resultsFile + '_sound.' + self.settings.audioFormat.lower()
+                        audSeg.export(filename_cvt, format=self.settings.audioFormat.lower())
                         
                         # Erase wav file
                         os.remove(filename_wav)
                     
                     # Adds to the video files
-                    if self.audioInVideos:
+                    if self.settings.audioInVideos:
                         
                         # Prepares audio channel (mp3 format, 192kbps)
                         filename_mp3 = path + resultsFile + '_sound.mp3'
@@ -1858,7 +1856,7 @@ class Tracking:
                     shutil.copyfile('References/refCam%d.png' % camNb, path + resultsFile + '_cam%d_RefImg.png' % camNb)
 
                 # If text copy requested (this can take a long time)
-                if self.saveTextCopy and (self.runDetect.value or self.runDLC.value):
+                if self.settings.saveTextCopy and (self.runDetect.value or self.runDLC.value):
 
                     # 2D data (txt)
                     if self.runDetect.value:
@@ -1960,6 +1958,9 @@ class UIController(QWidget):
         self.imgMode = self_tracking.imgMode
         self.recoboxRunning = self_tracking.recoboxRunning
         self.runLocal = self_tracking.settings.runLocal
+        self.expStarted = self_tracking.expStarted
+        self.stopRequest = self_tracking.stopRequest
+        self.quit = self_tracking.quit
 
         super().__init__()
 

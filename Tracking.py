@@ -25,7 +25,7 @@ import numpy as np
 from ximea import xiapi
 import cv2
 from PyQt5.QtWidgets import *
-from pyasn1_modules.rfc2985 import signingTime
+#from pyasn1_modules.rfc2985 import signingTime
 
 # IPs and communication ports (warning: ports indexed by camNb not camInd)
 IP = {'Tracking': '192.168.0.2', 'Rendering': '192.168.0.1', 'Recobox0': '192.168.0.20', 'Recobox1': '192.168.0.21', 'localhost':'127.0.0.1'}
@@ -1945,8 +1945,8 @@ class UIController(QWidget):
         if UImode:
             self.expID = self_tracking.expID
             self.subjectID = self_tracking.subjectID
-            self.trialID = self_tracking.subjectID
-            self.condID = self_tracking.subjectID
+            self.trialID = self_tracking.trialID
+            self.condID = self_tracking.condID
         self.runDetect = self_tracking.runDetect
         self.runDLC = self_tracking.runDLC
         self.triangulate = self_tracking.triangulate
@@ -1959,6 +1959,7 @@ class UIController(QWidget):
         self.saveResults = self_tracking.saveResults
         self.imgMode = self_tracking.imgMode
         self.recoboxRunning = self_tracking.recoboxRunning
+        self.runLocal = self_tracking.settings.runLocal
 
         super().__init__()
 
@@ -2548,7 +2549,7 @@ class UIController(QWidget):
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as clientSocket:
 
-            TCPserver_Tracking = (IP['Tracking'], TCPserverPort_Tracking) if not self.settings.runLocal \
+            TCPserver_Tracking = (IP['Tracking'], TCPserverPort_Tracking) if not self.runLocal \
                 else (IP['localhost'], TCPserverPort_Tracking)      # For local debug
 
             # Connects to TCP server on Tracking

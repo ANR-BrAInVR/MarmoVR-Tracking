@@ -643,7 +643,7 @@ class Tracking:
         self.log.LogText(2, 'VideoProcessing(%d): xiCam data acquisition started' % camNb)
 
         # Profiler and perfs inits
-        showProfiler = camNb in self.profilerList       # Time debug
+        showProfiler = camNb in self.settings.profilerList       # Time debug
         if showProfiler or showPerfs:
             tm = t0 = time.perf_counter()
             missed = 0

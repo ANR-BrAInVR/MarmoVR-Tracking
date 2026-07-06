@@ -22,8 +22,8 @@ import re
 import csv
 from ctypes import c_wchar_p
 import numpy as np
-from ximea import xiapi
 import cv2
+from ximea import xiapi
 from PyQt5.QtWidgets import *
 #from pyasn1_modules.rfc2985 import signingTime
 
@@ -1263,6 +1263,8 @@ class Tracking:
                     self.pos3D_cyclop[0] = pos3D_cyclop_tmp
 
             # Send 3D position to rendering via UDP (only valid when updatePosUDP is True)
+            # posUDP = pos3D_tmp
+            # updatePosUDP = True
             if self.sendPos3D.value and updatePosUDP:
 
                 # Filter on pos 3D to be sent : mean or median over sliding window
@@ -1276,7 +1278,7 @@ class Tracking:
                 # Send data
                 message = '%.3f,%.3f,%.3f' % tuple(posUDP)
                 UDPclientSocket.sendto(message.encode(), UDPclient_Rendering)
-                self.log.LogText(3, 'Triangulation: message sent to Rendering \'%s\' (camsUsed=%s, imgIndexes=%d)' % (message, vcUDP, imgIndexesPrev))
+                self.log.LogText(2, 'Triangulation: message sent to Rendering \'%s\' (camsUsed=%s, imgIndexes=%d)' % (message, vcUDP, imgIndexesPrev))
 
                 updatePosUDP = False
 

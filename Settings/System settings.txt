@@ -1,5 +1,5 @@
 logLevel		2				# Int: log verbose level of Tracking (0-4)
-controller		'UE'			# String: 'UE' for Unreal Engine (other PC) or 'UI' for user interface (this PC)
+controller		'UI'			# String: 'UE' for Unreal Engine (other PC) or 'UI' for user interface (this PC)
 runLocal		False           # Bool: run UDP and TCP on localhost, used for debugging
 profilerList	[]				# List: camera number for which time profiler is activated (for debug only)
 
@@ -12,7 +12,7 @@ showDLC			True			# Bool: show DLC on cropped images, needs tracking and runDLC a
 useCyclop		True			# Bool: use cyclop instead of detected 2D positions for triangulation and monitoring
 imgMode			'full'			# String: image monitoring mode: 'full', 'diff', 'thresh', 'morph' (1280x1024 resized) or 'crop' (450x450)
 sendPos3D		True			# Bool: send 3D positions to Unreal based on detection or DLC (needs triangulate enabled)
-recvStimPos		True			# Bool: receives a list with stimulus 3D positions/orientations
+recvStimPos		False			# Bool: receives a list with stimulus 3D positions/orientations
 
 # Results options
 saveResults		True			# Bool: save results

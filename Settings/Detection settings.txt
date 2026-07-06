@@ -17,7 +17,7 @@ nKeysDynCrop	3	 		# Minimum number of valid keypoints for dynamic crop
 getCyclop3D		False		# Compute cyclop 3D positions (averaging of triangulated keypoints) instead of triangulating 2D cyclops
 keyCyclop		['eartuffL', 'eartuffR'] 			# Keypoints averaged to define cyclop (in 2D and then triangulated)
 pThreshCyclop	0.4 		# Float: minimum inference probability for keypoints to be used when averaging to compute cyclop position
-nKeysCyclop		2	 		# Minimum number of valid keypoints to compute cyclop position
+nKeysCyclop		1	 		# Minimum number of valid keypoints to compute cyclop position
 getVelocity		True		# Bool: compute cyclop velocity (3D vector and norm)
 minFwdSpeed		10			# Float: minimal velocity to be considered moving forward (cm/s)
 minBwdSpeed		10			# Float: minimal velocity to be considered moving backward (cm/s)

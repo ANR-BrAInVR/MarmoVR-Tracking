@@ -988,7 +988,7 @@ class Tracking:
                 # - processor : Processor() (peut être redéfini pour ajouter du filtrage prédictif par exemple)
                 # - display : pour tracer des points (pas encore trouvé comment, pas utilisé)
                 # dlc_live = DLCLive(self.neuralNetDir, model_type=optimization, tf_config=config, processor=Processor(), display=False)
-                dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor, =self.cropSize[0]/self.nativeCropSize[0])
+                dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor, ratio=self.cropSize[0]/self.nativeCropSize[0])
             elif self.modelType == 'pytorch':
                 dlc_live = DLCLive(self.neuralNetDir, model_type='pytorch', processor=Processor(), display=False, single_animal=True)
 
@@ -2577,7 +2577,7 @@ class Log:
     def __init__(self, logLevel=int, showTime=True, __output=''):
         """Use output='' for console writing"""
 
-        # self.__lock = threading.Lock()
+        self.__lock = threading.Lock()
         self.logLevel = logLevel
         self.showTime = showTime
         if showTime:
@@ -2599,13 +2599,13 @@ class Log:
     def LogText(self, level, text):
 
         if self.logLevel >= level:
-            # self.__lock.acquire()
+            self.__lock.acquire()
             if self.showTime:
                 t = float(time.time_ns() - self.startTime) / 1E9
                 print('%10.6f\t' % t + '  ' * (level - 1) + text)
             else:
                 print('  ' * (level - 1) + text)
-            # self.__lock.release()
+            self.__lock.release()
 
 
 # Starts everything (if this is the main process)

@@ -1278,7 +1278,7 @@ class Tracking:
                 # Send data
                 message = '%.3f,%.3f,%.3f' % tuple(posUDP)
                 UDPclientSocket.sendto(message.encode(), UDPclient_Rendering)
-                self.log.LogText(2, 'Triangulation: message sent to Rendering \'%s\' (camsUsed=%s, imgIndexes=%d)' % (message, vcUDP, imgIndexesPrev))
+                self.log.LogText(3, 'Triangulation: message sent to Rendering \'%s\' (camsUsed=%s, imgIndexes=%d)' % (message, vcUDP, imgIndexesPrev))
 
                 updatePosUDP = False
 

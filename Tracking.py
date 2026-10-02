@@ -25,7 +25,6 @@ import numpy as np
 import cv2
 from ximea import xiapi
 from PyQt5.QtWidgets import *
-#from pyasn1_modules.rfc2985 import signingTime
 
 # IPs and communication ports (warning: ports indexed by camNb not camInd)
 IP = {'Tracking': '192.168.0.2', 'Rendering': '192.168.0.1', 'Recobox0': '192.168.0.20', 'Recobox1': '192.168.0.21', 'localhost':'127.0.0.1'}

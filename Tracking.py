@@ -345,7 +345,7 @@ class Tracking:
         while self.acquiring[:self.camCount] != [True] * self.camCount:
             time.sleep(0.1)
             if (time.perf_counter() - t0 > self.connectTimeout + 1) or self.stopRequest.value:
-                self.log.LogText(2, 'Start: could not start all VideoProcessing processes')
+                self.log.LogText(2, 'Error: could not start all VideoProcessing processes')
                 self.stopRequest.value = True
                 return -1
         self.expStarted.value = True
@@ -354,8 +354,13 @@ class Tracking:
         # Send sync request to reset image indexes
         self.log.LogText(2, 'Start: sending syncRequest')
         self.syncRequest[:self.camCount] = [True] * self.camCount
+        t0 = time.perf_counter()
         while self.syncRequest[:self.camCount] != [False] * self.camCount:
             time.sleep(0.1)
+            if (time.perf_counter() - t0 > self.connectTimeout + 1) or self.stopRequest.value:
+                self.log.LogText(2, 'Error: could not sync all VideoProcessing processes')
+                self.stopRequest.value = True
+                return -1
 
         # Start DLC inferences process (which will start 4 threads)
         if self.runDLC.value:
@@ -363,9 +368,13 @@ class Tracking:
             runDLCproc = mp.Process(target=self.RunDLC, args=())
             runDLCproc.start()
             processList.append(runDLCproc)
+            t0 = time.perf_counter()
             while not self.DLCrunning.value:
-                print('not self.DLCrunning.value')
                 time.sleep(0.1)
+                if (time.perf_counter() - t0 > self.connectTimeout + 1) or self.stopRequest.value:
+                    self.log.LogText(2, 'Error: could not start RunDLC, try restarting Tracking.py (restart an experiment after a stop not possible yet)')
+                    self.stopRequest.value = True
+                    return -1
 
         if self.runDetect.value or self.runDLC.value or self.recSound.value:
             # Start triangulation process (only one)

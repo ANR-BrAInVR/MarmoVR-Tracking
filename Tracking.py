@@ -1001,11 +1001,10 @@ class Tracking:
             elif self.modelType == 'pytorch':
                 dlc_live = DLCLive(self.neuralNetDir, model_type='pytorch', processor=Processor(), display=False, single_animal=True)
 
-            # print('Step 1')
 
             # Initialize weights with black image (0 info)
+            # print('Step 1')
             dlc_live.init_inference(np.zeros(self.cropSize, np.float32))
-
             # print('Step 2')       # Step never reached when Start() called a second time
 
         # Threaded DLC inference

@@ -9,7 +9,7 @@ runDLC			True			# Bool: run DLC inferences on each camera frame
 triangulate		True			# Bool: triangulates 2D positions of cameras to get 3D positions
 showPos2D		True			# Bool: show animal tracking, needs either runDetect or runDLC enabled
 showDLC			True			# Bool: show DLC on cropped images, needs tracking and runDLC activated
-useCyclop		False			# Bool: use cyclop instead of detected 2D positions for triangulation and monitoring
+useCyclop		True			# Bool: use cyclop instead of detected 2D positions for triangulation and monitoring
 imgMode			'crop'			# String: image monitoring mode: 'full', 'diff', 'thresh', 'morph' (1280x1024 resized) or 'crop' (450x450)
 sendPos3D		True			# Bool: send 3D positions to Unreal based on detection or DLC (needs triangulate enabled)
 recvStimPos		False			# Bool: receives a list with stimulus 3D positions/orientations

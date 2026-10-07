@@ -365,6 +365,7 @@ class Tracking:
             runDLCproc.start()
             processList.append(runDLCproc)
             while not self.DLCrunning.value:
+                print('not self.DLCrunning.value')
                 time.sleep(0.1)
 
         if self.runDetect.value or self.runDLC.value or self.recSound.value:
@@ -987,13 +988,15 @@ class Tracking:
                 # - tf_config : configuration définie juste au dessus (limitation mémoire)
                 # - processor : Processor() (peut être redéfini pour ajouter du filtrage prédictif par exemple)
                 # - display : pour tracer des points (pas encore trouvé comment, pas utilisé)
-                # dlc_live = DLCLive(self.neuralNetDir, model_type=optimization, tf_config=config, processor=Processor(), display=False)
-                dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor, ratio=self.cropSize[0]/self.nativeCropSize[0])
+                # dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor, ratio=self.cropSize[0]/self.nativeCropSize[0])
+                dlc_live = DLCLive(self.neuralNetDir, model_type='base', tf_config=config, processor=Processor())
             elif self.modelType == 'pytorch':
                 dlc_live = DLCLive(self.neuralNetDir, model_type='pytorch', processor=Processor(), display=False, single_animal=True)
 
+            # print('Step 1')
             # Initialize weights with black image (0 info)
             dlc_live.init_inference(np.zeros(self.cropSize, np.float32))
+            # print('Step 2')       # Step never reached when Start() called a second time
 
         # Threaded DLC inference
         def DLC_inference(self, camInd, dlc_live):
@@ -1054,6 +1057,7 @@ class Tracking:
         for camInd in range(self.camCount):
             DLC_threads[camInd] = threading.Thread(target=DLC_inference, args=(self, camInd, dlc_live))
             DLC_threads[camInd].start()
+        print('Step 3')
 
         self.DLCrunning.value = True
         self.log.LogText(1, 'RunDLC: all DLC_inference threads have been launched, quitting')

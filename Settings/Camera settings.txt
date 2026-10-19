@@ -1,4 +1,5 @@
 camList			[0, 1, 2, 3]	# List of int: cameras to use with values between 0 and 3
+camSerialNbs	['QWLAA2405004', 'QWLAA2404020', 'QWLAA2404000', 'QWLAA2404004'] 	# List of strings: camera serial numbers
 connectTimeout	12				# Int: camera connection timeout (in seconds)
 framerate		40				# Int: processing framerate (camera framerate is this multiplied by frameStep value)
 frameStep		1				# Int: number of acquired frames between two processed frames (minimum 1)
